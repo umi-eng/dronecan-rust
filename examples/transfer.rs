@@ -1,4 +1,4 @@
-use dronecan::{Kind, Transfer};
+use dronecan::{Id, Transfer};
 use embedded_can::ExtendedId;
 
 fn main() {
@@ -49,8 +49,8 @@ fn main() {
     let mut transfer = Transfer::new(vec![]);
 
     for frame in frames {
-        match dronecan::Id::from(frame.id).kind() {
-            Kind::Message {
+        match dronecan::Id::from(frame.id) {
+            Id::Message {
                 priority: 8,
                 type_id: 1010,
                 source_node: 10,
