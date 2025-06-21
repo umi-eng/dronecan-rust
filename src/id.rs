@@ -126,6 +126,12 @@ impl From<embedded_can::ExtendedId> for Id {
     }
 }
 
+impl From<Id> for embedded_can::ExtendedId {
+    fn from(value: Id) -> Self {
+        Self::new(value.as_raw()).unwrap()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
