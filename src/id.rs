@@ -78,7 +78,7 @@ impl Id {
                 type_id,
                 source_node,
             } => {
-                raw |= (priority as u32) << 24;
+                raw |= (priority as u32 & 0x1F) << 24;
                 raw |= (type_id as u32) << 8;
                 raw |= (source_node as u32) & 0x7F;
             }
@@ -87,7 +87,7 @@ impl Id {
                 discriminator,
                 type_id,
             } => {
-                raw |= (priority as u32) << 24;
+                raw |= (priority as u32 & 0x1F) << 24;
                 raw |= (discriminator as u32 & 0x3FFF) << 10;
                 raw |= (type_id as u32 & 0x3) << 8;
             }
@@ -98,7 +98,7 @@ impl Id {
                 destination_node,
                 source_node,
             } => {
-                raw |= (priority as u32) << 24;
+                raw |= (priority as u32 & 0x1F) << 24;
                 raw |= (service_type as u32) << 16;
                 raw |= (request as u32) << 15;
                 raw |= (destination_node as u32 & 0x7F) << 8;
