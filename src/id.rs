@@ -1,6 +1,3 @@
-/// 29-bit identifier mask.
-const ID_MASK: u32 = 0x1fffffff;
-
 /// DroneCAN identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt-1", derive(defmt::Format))]
