@@ -40,7 +40,7 @@ impl Id {
     ///
     /// Masked to 29 bits to ensure the id is valid.
     pub fn new(raw: u32) -> Self {
-        let raw = raw & ID_MASK;
+        let raw = raw & embedded_can::ExtendedId::MAX.as_raw();
 
         let priority = (raw >> 24) as u8;
         let source_node = (raw & 0x7F) as u8;
