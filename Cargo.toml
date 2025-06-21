@@ -8,10 +8,9 @@ license = "MPL-2.0"
 embedded-can = "0.4.1"
 defmt = { version = "1.0.1", optional = true }
 managed = { version = "0.8.0", default-features = false }
-thiserror = { version = "2.0.12", default-features = false }
 
 [features]
 default = ["std"]
-std = ["thiserror/std", "managed/std", "alloc"]
+std = ["managed/std", "alloc"]
 alloc = ["managed/alloc", "defmt?/alloc"]
 defmt-1 = ["defmt"]

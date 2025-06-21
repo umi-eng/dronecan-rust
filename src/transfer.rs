@@ -1,22 +1,32 @@
+use core::fmt;
 use managed::ManagedSlice;
 
 /// Transfer error.
-#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt-1", derive(defmt::Format))]
-pub enum TransferError {
-    #[error("Data length invalid")]
+pub enum Error {
     DataLength,
-    #[error("Buffer is too small")]
     BufferTooSmall,
-    #[error("Transfer frame out of order")]
     FrameOrder,
-    #[error("CRC check failed")]
     Crc,
-    #[error("ID mismatch")]
     IdMismatch,
-    #[error("Toggle bit incorrect")]
     Toggle,
 }
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DataLength => write!(f, "Data length invalid"),
+            Self::BufferTooSmall => write!(f, "Buffer is too small"),
+            Self::FrameOrder => write!(f, "Transfer frame out of order"),
+            Self::Crc => write!(f, "CRC check failed"),
+            Self::IdMismatch => write!(f, "ID mismatch"),
+            Self::Toggle => write!(f, "Toggle bit incorrect"),
+        }
+    }
+}
+
+impl core::error::Error for Error {}
 
 /// Single-frame or multi-frame payload transfer.
 ///
@@ -57,19 +67,19 @@ impl<'a> Transfer<'a> {
     /// as the end of the transfer.
     ///
     /// If a [`TransferError`] is returned, the transfer should probably be abandoned.
-    pub fn add_frame(&mut self, data: &[u8]) -> Result<Option<&[u8]>, TransferError> {
+    pub fn add_frame(&mut self, data: &[u8]) -> Result<Option<&[u8]>, Error> {
         if data.len() > 8 {
-            return Err(TransferError::DataLength);
+            return Err(Error::DataLength);
         }
 
         let tail = match data.last() {
             Some(d) => Tail(*d),
-            None => return Err(TransferError::DataLength),
+            None => return Err(Error::DataLength),
         };
 
         if tail.start() && self.length != 0 {
             // this is not the first transfer
-            return Err(TransferError::FrameOrder);
+            return Err(Error::FrameOrder);
         }
 
         if tail.start() {
@@ -78,15 +88,15 @@ impl<'a> Transfer<'a> {
         } else {
             // we cannot start with an end frame
             if self.length == 0 && tail.end() {
-                return Err(TransferError::FrameOrder);
+                return Err(Error::FrameOrder);
             }
 
             if self.transfer_id != tail.transfer_id() {
-                return Err(TransferError::IdMismatch);
+                return Err(Error::IdMismatch);
             }
 
             if self.toggle == tail.toggle() {
-                return Err(TransferError::Toggle);
+                return Err(Error::Toggle);
             } else {
                 self.toggle = tail.toggle();
             }
@@ -106,7 +116,7 @@ impl<'a> Transfer<'a> {
             }
             ManagedSlice::Borrowed(slice) => {
                 if self.length + inner_data.len() > slice.len() {
-                    return Err(TransferError::BufferTooSmall);
+                    return Err(Error::BufferTooSmall);
                 }
                 slice[self.length..self.length + inner_data.len()].copy_from_slice(inner_data)
             }
@@ -197,6 +207,6 @@ mod tests {
         let res = transfer.add_frame(&[0x01, 0x98, 0x01, 0x00, 0x68, 0xB5, 0x02, 0x9D]);
         assert_eq!(res, Ok(None));
         let res = transfer.add_frame(&[0x00, 0x7D, 0x33, 0x7D]);
-        assert_eq!(res, Err(TransferError::BufferTooSmall));
+        assert_eq!(res, Err(Error::BufferTooSmall));
     }
 }
