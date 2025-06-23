@@ -66,7 +66,7 @@ impl<'a> Transfer<'a> {
     /// `Ok(Some(&[u8]))` with the inner data if the last data frame was marked
     /// as the end of the transfer.
     ///
-    /// If a [`TransferError`] is returned, the transfer should probably be abandoned.
+    /// If an [`Error`] is returned, the transfer should probably be abandoned.
     pub fn add_frame(&mut self, data: &[u8]) -> Result<Option<&[u8]>, Error> {
         if data.len() > 8 {
             return Err(Error::DataLength);
