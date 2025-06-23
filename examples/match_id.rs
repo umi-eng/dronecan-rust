@@ -10,6 +10,7 @@ fn main() {
             priority: 8,
             type_id: 1010,
             source_node: 10,
+            ..
         } => println!("Matched!"),
 
         _ => println!("Got something else..."),

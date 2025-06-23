@@ -2,6 +2,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt-1", derive(defmt::Format))]
 pub enum Id {
+    #[non_exhaustive]
     Message {
         /// Message priority.
         priority: u8,
@@ -10,6 +11,7 @@ pub enum Id {
         /// Source node ID.
         source_node: u8,
     },
+    #[non_exhaustive]
     Anonymous {
         /// Message priority.
         priority: u8,
@@ -18,6 +20,7 @@ pub enum Id {
         /// Message type ID (lower bits).
         type_id: u8,
     },
+    #[non_exhaustive]
     Service {
         /// Message priority.
         priority: u8,

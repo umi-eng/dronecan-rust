@@ -54,6 +54,7 @@ fn main() {
                 priority: 8,
                 type_id: 1010,
                 source_node: 10,
+                ..
             } => match transfer.add_frame(&frame.data) {
                 Ok(Some(data)) => {
                     println!("Transfer complete with data: {:?}", data);
