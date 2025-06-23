@@ -42,6 +42,8 @@ pub struct Transfer<'a> {
 
 impl<'a> Transfer<'a> {
     /// Create a new empty transfer.
+    ///
+    /// Every element in `storage` will be reset.
     pub fn new<S>(storage: S) -> Self
     where
         S: Into<ManagedSlice<'a, u8>>,
