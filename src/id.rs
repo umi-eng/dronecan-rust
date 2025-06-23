@@ -66,6 +66,83 @@ impl Id {
         }
     }
 
+    /// Create a message identifier.
+    ///
+    /// - `source_node` source node identifier `1..=127`
+    /// - `type_id` message type identifier
+    /// - `priority` message priority `1..=31`
+    pub fn message(source_node: u8, type_id: u16, priority: u8) -> Option<Self> {
+        if priority > 0x1F {
+            return None;
+        }
+
+        // cannot be an anonymous message
+        if source_node == 0 || source_node > 0x7F {
+            return None;
+        }
+
+        Some(Self::Message {
+            priority,
+            type_id,
+            source_node,
+        })
+    }
+
+    /// Create an anonymous identifier.
+    ///
+    /// - `type_id` message type identifier masked to the two lowest bits -
+    /// `discriminator` a field which should be filled with random data to make
+    /// anonymous frames unique. Valid values `1..=16383`
+    /// - `priority` message priority `1..=31`
+    pub fn anonymous(type_id: u16, discriminator: u16, priority: u8) -> Option<Self> {
+        if priority > 0x1F {
+            return None;
+        }
+
+        if discriminator > 0x3FFF {
+            return None;
+        }
+
+        let type_id = (type_id & 0x3) as u8;
+
+        Some(Self::Anonymous {
+            priority,
+            discriminator,
+            type_id,
+        })
+    }
+
+    /// Create a service identifier.
+    ///
+    /// - `source_node` source node identifier `1..=127`
+    /// - `destination_node` destination node identifier `1..=127`
+    /// - `service_type` data type identifier of the encoded service request or response
+    /// - `request` request `true` or response `false`
+    /// - `priority` message priority `1..=31`
+    pub fn service(
+        source_node: u8,
+        destination_node: u8,
+        service_type: u8,
+        request: bool,
+        priority: u8,
+    ) -> Option<Self> {
+        if priority > 0x1F {
+            return None;
+        }
+
+        if source_node > 0x7F || destination_node > 0x7F {
+            return None;
+        }
+
+        Some(Self::Service {
+            priority,
+            service_type,
+            request,
+            destination_node,
+            source_node,
+        })
+    }
+
     pub fn as_raw(&self) -> u32 {
         let mut raw = 0_u32;
 
@@ -132,6 +209,16 @@ impl From<Id> for embedded_can::ExtendedId {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn create_ids() {
+        assert!(Id::message(123, 123, 31).is_some());
+        assert!(Id::message(123, 123, 32).is_none()); // priority too large
+        assert!(Id::anonymous(123, 123, 31).is_some());
+        assert!(Id::anonymous(123, 123, 32).is_none()); // priority too large
+        assert!(Id::service(123, 123, 123, false, 31).is_some());
+        assert!(Id::service(123, 123, 123, false, 32).is_none()); // priority too large
+    }
 
     #[test]
     fn to_from_raw() {
