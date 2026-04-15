@@ -14,4 +14,4 @@ managed = { version = "0.8.0", default-features = false }
 default = ["std"]
 std = ["managed/std", "alloc"]
 alloc = ["managed/alloc", "defmt?/alloc"]
-defmt-1 = ["defmt"]
+defmt = ["dep:defmt"]

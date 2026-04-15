@@ -1,6 +1,6 @@
 /// DroneCAN identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "defmt-1", derive(defmt::Format))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Id {
     #[non_exhaustive]
     Message {

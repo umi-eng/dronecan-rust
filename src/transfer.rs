@@ -3,7 +3,7 @@ use managed::ManagedSlice;
 
 /// Transfer error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "defmt-1", derive(defmt::Format))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
     DataLength,
     BufferTooSmall,
@@ -32,7 +32,7 @@ impl core::error::Error for Error {}
 ///
 /// This implementation doesn't yet verify the checksum.
 #[derive(Debug)]
-#[cfg_attr(feature = "defmt-1", derive(defmt::Format))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Transfer<'a> {
     storage: ManagedSlice<'a, u8>,
     length: usize,
