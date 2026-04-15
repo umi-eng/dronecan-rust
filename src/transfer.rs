@@ -140,18 +140,22 @@ impl<'a> Transfer<'a> {
 struct Tail(u8);
 
 impl Tail {
+    /// Start of transfer.
     fn start(&self) -> bool {
         (self.0 & (1 << 7)) != 0
     }
 
+    /// End of transfer.
     fn end(&self) -> bool {
         (self.0 & (1 << 6)) != 0
     }
 
+    /// Toggle bit (inverts every payload).
     fn toggle(&self) -> bool {
         (self.0 & (1 << 5)) != 0
     }
 
+    /// Transfer identifier.
     fn transfer_id(&self) -> u8 {
         self.0 & 0x1F
     }
