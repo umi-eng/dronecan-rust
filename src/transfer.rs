@@ -16,12 +16,12 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::DataLength => write!(f, "Data length invalid"),
-            Self::BufferTooSmall => write!(f, "Buffer is too small"),
-            Self::FrameOrder => write!(f, "Transfer frame out of order"),
+            Self::DataLength => write!(f, "data length invalid"),
+            Self::BufferTooSmall => write!(f, "buffer is too small"),
+            Self::FrameOrder => write!(f, "transfer frame out of order"),
             Self::Crc => write!(f, "CRC check failed"),
-            Self::IdMismatch => write!(f, "ID mismatch"),
-            Self::Toggle => write!(f, "Toggle bit incorrect"),
+            Self::IdMismatch => write!(f, "id mismatch"),
+            Self::Toggle => write!(f, "toggle bit incorrect"),
         }
     }
 }
