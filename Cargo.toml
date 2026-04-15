@@ -1,9 +1,11 @@
 [package]
 name = "dronecan"
+description = "Dronecan library"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MPL-2.0"
+categories = ["embedded", "no-std", "no-std::no-alloc", "aerospace::drones"]
 
 [dependencies]
 embedded-can = "0.4.1"
