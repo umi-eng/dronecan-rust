@@ -153,11 +153,11 @@ impl Id {
             return Err(InvalidId::Priority(priority));
         }
 
-        if source_node > 0x7F {
+        if source_node == 0 || source_node > 0x7F {
             return Err(InvalidId::SourceNode(source_node));
         }
 
-        if destination_node > 0x7F {
+        if destination_node == 0 || destination_node > 0x7F {
             return Err(InvalidId::DestinationNode(destination_node));
         }
 
@@ -266,12 +266,24 @@ mod tests {
             Err(InvalidId::Priority(32))
         );
         assert_eq!(
+            Id::service(0, 123, 123, false, 31),
+            Err(InvalidId::SourceNode(0))
+        );
+        assert_eq!(
             Id::service(128, 123, 123, false, 31),
             Err(InvalidId::SourceNode(128))
         );
         assert_eq!(
+            Id::service(123, 0, 123, false, 31),
+            Err(InvalidId::DestinationNode(0))
+        );
+        assert_eq!(
             Id::service(123, 128, 123, false, 31),
             Err(InvalidId::DestinationNode(128))
+        );
+        assert_eq!(
+            Id::service(0, 0, 123, false, 31),
+            Err(InvalidId::SourceNode(0))
         );
     }
 

@@ -11,6 +11,11 @@
 - Replace the infallible `From<Id> for embedded_can::ExtendedId` conversion
   with `TryFrom<Id>`, which returns the new `InvalidExtendedId` error instead
   of panicking.
+- `Id::service` now rejects node ID `0` for both `source_node` and
+  `destination_node`, returning `InvalidId::SourceNode` and
+  `InvalidId::DestinationNode` respectively. The DroneCAN spec requires both
+  node IDs to be in `1..=127`; previously only values above `127` were
+  rejected. Decoding raw IDs via `Id::new` is unchanged.
 - Reject the first frame of a transfer if its toggle bit is set, returning
   `Error::Toggle`.
 - Verify the CRC-16-CCITT-FALSE checksum of multi-frame transfers.
