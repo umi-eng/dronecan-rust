@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Fix `clippy::doc_lazy_continuation` warnings in the `Id::anonymous`
+  documentation.
 - `Id::message`, `Id::anonymous`, and `Id::service` now return
   `Result<Id, InvalidId>` instead of `Option<Id>`. The new `InvalidId` error
   reports which field was invalid. `InvalidId` and `InvalidExtendedId` now

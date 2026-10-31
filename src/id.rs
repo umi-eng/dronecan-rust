@@ -114,8 +114,8 @@ impl Id {
     /// Create an anonymous identifier.
     ///
     /// - `type_id` message type identifier masked to the two lowest bits -
-    /// `discriminator` a field which should be filled with random data to make
-    /// anonymous frames unique. Valid values `1..=16383`
+    ///   `discriminator` a field which should be filled with random data to make
+    ///   anonymous frames unique. Valid values `1..=16383`
     /// - `priority` message priority `1..=31`
     pub fn anonymous(type_id: u16, discriminator: u16, priority: u8) -> Result<Self, InvalidId> {
         if priority > 0x1F {
