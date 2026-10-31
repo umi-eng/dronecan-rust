@@ -731,6 +731,70 @@ mod tests {
     }
 
     #[test]
+    fn error_display() {
+        assert_eq!(Error::DataLength.to_string(), "data length invalid");
+        assert_eq!(Error::BufferTooSmall.to_string(), "buffer is too small");
+        assert_eq!(Error::FrameOrder.to_string(), "transfer frame out of order");
+        assert_eq!(Error::IdMismatch.to_string(), "id mismatch");
+        assert_eq!(Error::Toggle.to_string(), "toggle bit incorrect");
+    }
+
+    #[test]
+    fn transfer_frame_too_long() {
+        // A CAN frame can carry at most 8 bytes including the tail byte.
+        let mut transfer = Transfer::new(vec![], None);
+        assert_eq!(
+            transfer.add_frame(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0xDF]),
+            Err(Error::DataLength)
+        );
+    }
+
+    #[test]
+    fn transfer_start_frame_while_started() {
+        let mut transfer = Transfer::new(vec![], Some(ARRAY_COMMAND_SIGNATURE));
+        assert_eq!(
+            transfer.add_frame(&[0x01, 0x98, 0x01, 0x00, 0x68, 0xB5, 0x02, 0x9D]),
+            Ok(None)
+        );
+
+        // A second start frame before the transfer completes is out of order.
+        assert_eq!(
+            transfer.add_frame(&[0x01, 0x98, 0x01, 0x00, 0x68, 0xB5, 0x02, 0x9D]),
+            Err(Error::FrameOrder)
+        );
+    }
+
+    #[test]
+    fn transfer_continuation_toggle_mismatch() {
+        let mut transfer = Transfer::new(vec![], Some(ARRAY_COMMAND_SIGNATURE));
+        // Start frame with the toggle bit cleared.
+        assert_eq!(
+            transfer.add_frame(&[0x01, 0x98, 0x01, 0x00, 0x68, 0xB5, 0x02, 0x9D]),
+            Ok(None)
+        );
+
+        // A continuation frame must invert the toggle bit; this one repeats it.
+        assert_eq!(
+            transfer.add_frame(&[0x00, 0x7D, 0x33, 0x5D]),
+            Err(Error::Toggle)
+        );
+    }
+
+    #[test]
+    fn transfer_new_clears_owned_storage() {
+        // Pre-filled owned storage is cleared so stale bytes cannot leak into
+        // the first transfer.
+        let mut transfer = Transfer::new(vec![0xAA; 16], None);
+        assert_eq!(
+            transfer.add_frame(&[0x01, 0x02, 0xDF]),
+            Ok(Some(Payload {
+                data: &[0x01, 0x02],
+                crc_valid: false,
+            }))
+        );
+    }
+
+    #[test]
     fn transfer_resets_after_error() {
         let mut transfer = Transfer::new(vec![], Some(ARRAY_COMMAND_SIGNATURE));
         assert_eq!(

@@ -288,6 +288,53 @@ mod tests {
     }
 
     #[test]
+    fn priority() {
+        assert_eq!(Id::message(1, 1, 5).ok().map(|id| id.priority()), Some(5));
+        assert_eq!(Id::anonymous(1, 1, 6).ok().map(|id| id.priority()), Some(6));
+        assert_eq!(
+            Id::service(1, 2, 3, false, 7).ok().map(|id| id.priority()),
+            Some(7)
+        );
+    }
+
+    #[test]
+    fn from_extended_id() {
+        assert_eq!(
+            embedded_can::ExtendedId::new(0x1F0155FA).map(Id::from),
+            Some(Id::new(0x1F0155FA))
+        );
+    }
+
+    #[test]
+    fn new_masks_to_29_bits() {
+        assert_eq!(Id::new(0xFFFF_FFFF), Id::new(0x1FFF_FFFF));
+    }
+
+    #[test]
+    fn invalid_id_display() {
+        assert_eq!(
+            InvalidId::Priority(32).to_string(),
+            "priority 32 exceeds the maximum of 31"
+        );
+        assert_eq!(
+            InvalidId::SourceNode(0).to_string(),
+            "source node id 0 is out of range"
+        );
+        assert_eq!(
+            InvalidId::DestinationNode(128).to_string(),
+            "destination node id 128 is out of range"
+        );
+        assert_eq!(
+            InvalidId::Discriminator(0x4000).to_string(),
+            "discriminator 16384 exceeds the maximum of 16383"
+        );
+        assert_eq!(
+            InvalidExtendedId.to_string(),
+            "id cannot be represented as an extended CAN id"
+        );
+    }
+
+    #[test]
     fn to_extended_id() {
         assert_eq!(
             embedded_can::ExtendedId::try_from(Id::new(0x1F0155FA)).ok(),

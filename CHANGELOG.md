@@ -36,6 +36,10 @@
   `Error::FrameOrder`, and a stray continuation frame could be appended to the
   previous payload and returned as a completed transfer. `Transfer` is now
   reusable across transfers without constructing a new instance.
+- Add unit tests for previously uncovered code: `Id::priority`, the
+  `From<embedded_can::ExtendedId>` conversion, raw ID masking, error `Display`
+  implementations, oversized frames, duplicate start frames, continuation
+  toggle mismatches, and clearing pre-filled owned transfer storage.
 
 ## v0.1.0
 
