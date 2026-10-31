@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## v0.2.0
+
 - Fix `clippy::doc_lazy_continuation` warnings in the `Id::anonymous`
   documentation.
 - `Id::message`, `Id::anonymous`, and `Id::service` now return
