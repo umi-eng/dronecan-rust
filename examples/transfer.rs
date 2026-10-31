@@ -64,15 +64,15 @@ fn main() {
                         "Transfer complete with data: {:?} (CRC valid: {})",
                         payload.data, payload.crc_valid
                     );
-                    // restart the transfer
-                    transfer = Transfer::new(vec![], Some(ARRAY_COMMAND_SIGNATURE));
+                    // The transfer resets itself and is ready for the next one.
                 }
                 Ok(None) => {
                     println!("Ingested some data.");
                 }
                 Err(err) => {
-                    println!("{}, restarting the transfer.", err);
-                    transfer = Transfer::new(vec![], Some(ARRAY_COMMAND_SIGNATURE));
+                    // The transfer resets itself, so the next start frame can
+                    // begin a fresh transfer.
+                    println!("{}, transfer reset.", err);
                 }
             },
             _ => println!("Got an id not part of our transfer."),

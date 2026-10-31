@@ -53,6 +53,10 @@ pub struct Payload<'a> {
 ///
 /// If no data type signature is provided, [`Payload::crc_valid`] will always
 /// be `false`.
+///
+/// A `Transfer` is reusable: its state is reset when a transfer completes or
+/// when [`Transfer::add_frame`] returns an [`Error`], so the same instance can
+/// be fed the frames of subsequent transfers.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Transfer<'a> {
@@ -105,8 +109,39 @@ impl<'a> Transfer<'a> {
     /// complete. `Ok(Some(payload))` is returned when the frame completes the
     /// transfer; the payload contains the assembled data and the CRC result.
     ///
-    /// If an [`Error`] is returned, the transfer should probably be abandoned.
+    /// The transfer state is reset when the transfer completes and when an
+    /// [`Error`] is returned, so the same `Transfer` can be reused for the next
+    /// transfer.
     pub fn add_frame(&mut self, data: &[u8]) -> Result<Option<Payload<'_>>, Error> {
+        match self.add_frame_inner(data) {
+            Ok(Some((length, crc_valid))) => {
+                // Reset before handing out the payload so a stray frame cannot
+                // be appended to the completed transfer. The payload still
+                // borrows the storage, which is left intact.
+                self.reset();
+                Ok(Some(Payload {
+                    data: &self.storage[..length],
+                    crc_valid,
+                }))
+            }
+            Ok(None) => Ok(None),
+            Err(err) => {
+                self.reset();
+                Err(err)
+            }
+        }
+    }
+
+    /// Reset the transfer state so a new transfer can begin.
+    fn reset(&mut self) {
+        self.length = 0;
+        self.transfer_id = 0;
+        self.toggle = false;
+        self.expected_crc = None;
+        self.started = false;
+    }
+
+    fn add_frame_inner(&mut self, data: &[u8]) -> Result<Option<(usize, bool)>, Error> {
         if data.len() > 8 {
             return Err(Error::DataLength);
         }
@@ -182,6 +217,10 @@ impl<'a> Transfer<'a> {
         match &mut self.storage {
             #[cfg(feature = "alloc")]
             ManagedSlice::Owned(vec) => {
+                if tail.start() {
+                    // A new transfer reuses the buffer from the beginning.
+                    vec.clear();
+                }
                 vec.extend_from_slice(inner_data);
             }
             ManagedSlice::Borrowed(slice) => {
@@ -206,10 +245,7 @@ impl<'a> Transfer<'a> {
                 None => self.signature.is_some(),
             };
 
-            Ok(Some(Payload {
-                data: &self.storage[..self.length],
-                crc_valid,
-            }))
+            Ok(Some((self.length, crc_valid)))
         } else {
             Ok(None)
         }
@@ -636,6 +672,87 @@ mod tests {
             transfer.add_frame(&[0x01, 0x02, 0x03, 0x04, 0xDF]),
             Ok(Some(Payload {
                 data: &[0x01, 0x02, 0x03, 0x04],
+                crc_valid: true,
+            }))
+        );
+    }
+
+    #[test]
+    fn transfer_reusable_after_completion() {
+        let mut transfer = Transfer::new(vec![], Some(ARRAY_COMMAND_SIGNATURE));
+
+        assert_eq!(
+            transfer.add_frame(&[0x01, 0x98, 0x01, 0x00, 0x68, 0xB5, 0x02, 0x9D]),
+            Ok(None)
+        );
+        assert_eq!(
+            transfer.add_frame(&[0x00, 0x7D, 0x33, 0x7D]),
+            Ok(Some(Payload {
+                data: &[0x01, 0x00, 0x68, 0xB5, 0x02, 0x00, 0x7D, 0x33],
+                crc_valid: true,
+            }))
+        );
+
+        // The same instance accepts a second, complete transfer.
+        assert_eq!(
+            transfer.add_frame(&[0x01, 0x98, 0x01, 0x00, 0x68, 0xB5, 0x02, 0x9D]),
+            Ok(None)
+        );
+        assert_eq!(
+            transfer.add_frame(&[0x00, 0x7D, 0x33, 0x7D]),
+            Ok(Some(Payload {
+                data: &[0x01, 0x00, 0x68, 0xB5, 0x02, 0x00, 0x7D, 0x33],
+                crc_valid: true,
+            }))
+        );
+    }
+
+    #[test]
+    fn transfer_stray_frame_after_completion_is_rejected() {
+        let mut transfer = Transfer::new(vec![], Some(ARRAY_COMMAND_SIGNATURE));
+        assert_eq!(
+            transfer.add_frame(&[0x01, 0x98, 0x01, 0x00, 0x68, 0xB5, 0x02, 0x9D]),
+            Ok(None)
+        );
+        assert_eq!(
+            transfer.add_frame(&[0x00, 0x7D, 0x33, 0x7D]),
+            Ok(Some(Payload {
+                data: &[0x01, 0x00, 0x68, 0xB5, 0x02, 0x00, 0x7D, 0x33],
+                crc_valid: true,
+            }))
+        );
+
+        // A continuation frame after completion must not be appended to the
+        // previous payload.
+        assert_eq!(
+            transfer.add_frame(&[0x00, 0x7D, 0x33, 0x7D]),
+            Err(Error::FrameOrder)
+        );
+    }
+
+    #[test]
+    fn transfer_resets_after_error() {
+        let mut transfer = Transfer::new(vec![], Some(ARRAY_COMMAND_SIGNATURE));
+        assert_eq!(
+            transfer.add_frame(&[0x01, 0x98, 0x01, 0x00, 0x68, 0xB5, 0x02, 0x9D]),
+            Ok(None)
+        );
+
+        // A frame with a different transfer ID abandons the transfer.
+        assert_eq!(
+            transfer.add_frame(&[0x00, 0x7D, 0x33, 0x5C]),
+            Err(Error::IdMismatch)
+        );
+
+        // The next start frame begins a fresh transfer.
+        assert_eq!(
+            transfer.add_frame(&[0x01, 0x98, 0x01, 0x00, 0x68, 0xB5, 0x02, 0x9D]),
+            Ok(None)
+        );
+        assert_eq!(
+            transfer.add_frame(&[0x00, 0x7D, 0x33, 0x7D]),
+            Ok(Some(Payload {
+                data: &[0x01, 0x00, 0x68, 0xB5, 0x02, 0x00, 0x7D, 0x33],
                 crc_valid: true,
             }))
         );

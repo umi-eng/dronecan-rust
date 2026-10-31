@@ -30,6 +30,12 @@
   `Error::BufferTooSmall` previously left the transfer marked as started, so a
   subsequent valid start frame was rejected with `Error::FrameOrder`. Frames are
   now validated before any state is mutated.
+- Reset `Transfer` state when a transfer completes or when `add_frame` returns
+  an `Error`. Previously the completed transfer stayed marked as started, so
+  reusing the same `Transfer` for a second transfer failed with
+  `Error::FrameOrder`, and a stray continuation frame could be appended to the
+  previous payload and returned as a completed transfer. `Transfer` is now
+  reusable across transfers without constructing a new instance.
 
 ## v0.1.0
 
