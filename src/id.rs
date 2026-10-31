@@ -1,3 +1,5 @@
+use core::fmt;
+
 /// DroneCAN identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -203,9 +205,25 @@ impl From<embedded_can::ExtendedId> for Id {
     }
 }
 
-impl From<Id> for embedded_can::ExtendedId {
-    fn from(value: Id) -> Self {
-        Self::new(value.as_raw()).unwrap()
+/// Error returned when an [`Id`] cannot be represented as an
+/// [`embedded_can::ExtendedId`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct InvalidExtendedId;
+
+impl fmt::Display for InvalidExtendedId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "id cannot be represented as an extended CAN id")
+    }
+}
+
+impl core::error::Error for InvalidExtendedId {}
+
+impl TryFrom<Id> for embedded_can::ExtendedId {
+    type Error = InvalidExtendedId;
+
+    fn try_from(value: Id) -> Result<Self, Self::Error> {
+        Self::new(value.as_raw()).ok_or(InvalidExtendedId)
     }
 }
 
@@ -221,6 +239,14 @@ mod tests {
         assert!(Id::anonymous(123, 123, 32).is_none()); // priority too large
         assert!(Id::service(123, 123, 123, false, 31).is_some());
         assert!(Id::service(123, 123, 123, false, 32).is_none()); // priority too large
+    }
+
+    #[test]
+    fn to_extended_id() {
+        assert_eq!(
+            embedded_can::ExtendedId::try_from(Id::new(0x1F0155FA)).ok(),
+            embedded_can::ExtendedId::new(0x1F0155FA)
+        );
     }
 
     #[test]
