@@ -1,6 +1,9 @@
 use dronecan::{Id, Transfer};
 use embedded_can::ExtendedId;
 
+/// `uavcan.equipment.actuator.ArrayCommand`
+const ARRAY_COMMAND_SIGNATURE: u64 = 0xD8A7486238EC3AF3;
+
 fn main() {
     let frames = &[
         // This frame will be ignored
@@ -46,7 +49,7 @@ fn main() {
         },
     ];
 
-    let mut transfer = Transfer::new(vec![]);
+    let mut transfer = Transfer::new(vec![], Some(ARRAY_COMMAND_SIGNATURE));
 
     for frame in frames {
         match dronecan::Id::from(frame.id) {
@@ -56,17 +59,20 @@ fn main() {
                 source_node: 10,
                 ..
             } => match transfer.add_frame(&frame.data) {
-                Ok(Some(data)) => {
-                    println!("Transfer complete with data: {:?}", data);
+                Ok(Some(payload)) => {
+                    println!(
+                        "Transfer complete with data: {:?} (CRC valid: {})",
+                        payload.data, payload.crc_valid
+                    );
                     // restart the transfer
-                    transfer = Transfer::new(vec![]);
+                    transfer = Transfer::new(vec![], Some(ARRAY_COMMAND_SIGNATURE));
                 }
                 Ok(None) => {
                     println!("Ingested some data.");
                 }
                 Err(err) => {
                     println!("{}, restarting the transfer.", err);
-                    transfer = Transfer::new(vec![]);
+                    transfer = Transfer::new(vec![], Some(ARRAY_COMMAND_SIGNATURE));
                 }
             },
             _ => println!("Got an id not part of our transfer."),
