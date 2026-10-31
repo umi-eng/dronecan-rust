@@ -25,6 +25,11 @@
 - Make `Transfer::add_frame` panic-free for short frames by splitting off the
   tail byte and CRC explicitly instead of indexing with `data.len() - 1`.
   Empty frames are rejected with `Error::DataLength`.
+- Fix `Transfer::add_frame` committing transfer state before a frame was fully
+  validated. A start frame that failed with `Error::DataLength` or
+  `Error::BufferTooSmall` previously left the transfer marked as started, so a
+  subsequent valid start frame was rejected with `Error::FrameOrder`. Frames are
+  now validated before any state is mutated.
 
 ## v0.1.0
 

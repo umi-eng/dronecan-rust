@@ -122,16 +122,15 @@ impl<'a> Transfer<'a> {
             return Err(Error::FrameOrder);
         }
 
-        if tail.start() {
+        // Validate the frame and compute the resulting state before mutating
+        // anything, so a rejected frame leaves the transfer untouched.
+        let (transfer_id, toggle, expected_crc) = if tail.start() {
             // the first frame of a transfer must have the toggle bit cleared
             if tail.toggle() {
                 return Err(Error::Toggle);
             }
 
-            self.transfer_id = tail.transfer_id();
-            self.toggle = tail.toggle();
-            self.started = true;
-            self.expected_crc = None;
+            (tail.transfer_id(), tail.toggle(), None)
         } else {
             // we cannot start with a frame that isn't the start of a transfer
             if !self.started {
@@ -144,24 +143,41 @@ impl<'a> Transfer<'a> {
 
             if self.toggle == tail.toggle() {
                 return Err(Error::Toggle);
-            } else {
-                self.toggle = tail.toggle();
             }
-        }
 
-        let inner_data = if tail.start() && !tail.end() {
+            (self.transfer_id, tail.toggle(), self.expected_crc)
+        };
+
+        let (inner_data, expected_crc) = if tail.start() && !tail.end() {
             // multi-frame transfers start with a 2-byte CRC and must carry at
             // least one byte of payload
             let (crc, payload) = match payload.split_first_chunk::<2>() {
                 Some((crc, payload)) if !payload.is_empty() => (crc, payload),
                 _ => return Err(Error::DataLength),
             };
-            self.expected_crc = Some(u16::from_le_bytes(*crc));
-            payload
+            (payload, Some(u16::from_le_bytes(*crc)))
         } else {
             // single frame transfers don't start with crc
-            payload
+            (payload, expected_crc)
         };
+
+        // Check the capacity before writing so a rejected frame leaves the
+        // transfer untouched.
+        match &self.storage {
+            #[cfg(feature = "alloc")]
+            ManagedSlice::Owned(_) => {}
+            ManagedSlice::Borrowed(slice) => {
+                if self.length + inner_data.len() > slice.len() {
+                    return Err(Error::BufferTooSmall);
+                }
+            }
+        }
+
+        // All validation passed; commit the frame.
+        self.transfer_id = transfer_id;
+        self.toggle = toggle;
+        self.started = true;
+        self.expected_crc = expected_crc;
 
         match &mut self.storage {
             #[cfg(feature = "alloc")]
@@ -169,9 +185,6 @@ impl<'a> Transfer<'a> {
                 vec.extend_from_slice(inner_data);
             }
             ManagedSlice::Borrowed(slice) => {
-                if self.length + inner_data.len() > slice.len() {
-                    return Err(Error::BufferTooSmall);
-                }
                 slice[self.length..self.length + inner_data.len()].copy_from_slice(inner_data)
             }
         }
@@ -583,6 +596,48 @@ mod tests {
         assert_eq!(
             transfer.add_frame(&[0x00, 0x7D, 0x33, 0x7D]),
             Err(Error::BufferTooSmall)
+        );
+    }
+
+    #[test]
+    fn transfer_invalid_start_frame_does_not_commit_state() {
+        // A start frame that fails validation must not mark the transfer as
+        // started, otherwise the next valid start frame is rejected.
+        let mut transfer = Transfer::new(vec![], Some(ARRAY_COMMAND_SIGNATURE));
+        assert_eq!(transfer.add_frame(&[0x01, 0x9D]), Err(Error::DataLength));
+
+        assert_eq!(
+            transfer.add_frame(&[0x01, 0x98, 0x01, 0x00, 0x68, 0xB5, 0x02, 0x9D]),
+            Ok(None)
+        );
+        let payload = transfer.add_frame(&[0x00, 0x7D, 0x33, 0x7D]);
+        assert_eq!(
+            payload,
+            Ok(Some(Payload {
+                data: &[0x01, 0x00, 0x68, 0xB5, 0x02, 0x00, 0x7D, 0x33],
+                crc_valid: true,
+            }))
+        );
+    }
+
+    #[test]
+    fn transfer_buffer_too_small_does_not_commit_state() {
+        // A start frame that does not fit in the storage must not mark the
+        // transfer as started, otherwise the next valid start frame is rejected.
+        let mut storage = [0; 4];
+        let mut transfer = Transfer::new(storage.as_mut_slice(), Some(ARRAY_COMMAND_SIGNATURE));
+        assert_eq!(
+            transfer.add_frame(&[0x01, 0x98, 0x01, 0x00, 0x68, 0xB5, 0x02, 0x9D]),
+            Err(Error::BufferTooSmall)
+        );
+
+        // A single-frame start frame that fits is still accepted.
+        assert_eq!(
+            transfer.add_frame(&[0x01, 0x02, 0x03, 0x04, 0xDF]),
+            Ok(Some(Payload {
+                data: &[0x01, 0x02, 0x03, 0x04],
+                crc_valid: true,
+            }))
         );
     }
 }
