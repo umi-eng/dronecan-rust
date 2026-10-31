@@ -122,6 +122,11 @@ impl<'a> Transfer<'a> {
         }
 
         if tail.start() {
+            // the first frame of a transfer must have the toggle bit cleared
+            if tail.toggle() {
+                return Err(Error::Toggle);
+            }
+
             self.transfer_id = tail.transfer_id();
             self.toggle = tail.toggle();
             self.started = true;
@@ -256,7 +261,7 @@ mod tests {
     fn transfer_single() {
         // Single-frame transfers do not use a CRC, so no signature is needed.
         let mut transfer = Transfer::new(vec![], None);
-        let payload = transfer.add_frame(&[0x01, 0x02, 0x03, 0x04, 0xFF]);
+        let payload = transfer.add_frame(&[0x01, 0x02, 0x03, 0x04, 0xDF]);
         assert_eq!(
             payload,
             Ok(Some(Payload {
@@ -266,7 +271,7 @@ mod tests {
         );
 
         let mut transfer = Transfer::new(vec![], None);
-        let payload = transfer.add_frame(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0xFF]);
+        let payload = transfer.add_frame(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0xDF]);
         assert_eq!(
             payload,
             Ok(Some(Payload {
@@ -276,7 +281,7 @@ mod tests {
         );
 
         let mut transfer = Transfer::new(vec![], None);
-        let payload = transfer.add_frame(&[0xFF]);
+        let payload = transfer.add_frame(&[0xDF]);
         assert_eq!(
             payload,
             Ok(Some(Payload {
@@ -290,7 +295,7 @@ mod tests {
     fn transfer_single_with_signature_crc_valid() {
         // Single-frame transfers carry no CRC, so there is nothing to fail.
         let mut transfer = Transfer::new(vec![], Some(ARRAY_COMMAND_SIGNATURE));
-        let payload = transfer.add_frame(&[0x01, 0x02, 0x03, 0x04, 0xFF]);
+        let payload = transfer.add_frame(&[0x01, 0x02, 0x03, 0x04, 0xDF]);
         assert_eq!(
             payload,
             Ok(Some(Payload {
@@ -305,7 +310,7 @@ mod tests {
         // Single-frame transfers carry no CRC, so the first two bytes are
         // ordinary payload even if they happen to look like a checksum.
         let mut transfer = Transfer::new(vec![], Some(ARRAY_COMMAND_SIGNATURE));
-        let payload = transfer.add_frame(&[0x01, 0x98, 0x00, 0xFF]);
+        let payload = transfer.add_frame(&[0x01, 0x98, 0x00, 0xDF]);
         assert_eq!(
             payload,
             Ok(Some(Payload {
@@ -313,6 +318,20 @@ mod tests {
                 crc_valid: true,
             }))
         );
+    }
+
+    #[test]
+    fn transfer_first_frame_toggle_must_be_zero() {
+        // Start frame with the toggle bit set is rejected.
+        let mut transfer = Transfer::new(vec![], Some(ARRAY_COMMAND_SIGNATURE));
+        assert_eq!(
+            transfer.add_frame(&[0x01, 0x98, 0x01, 0x00, 0x68, 0xB5, 0x02, 0xBD]),
+            Err(Error::Toggle)
+        );
+
+        // Single-frame transfer with the toggle bit set is rejected too.
+        let mut transfer = Transfer::new(vec![], None);
+        assert_eq!(transfer.add_frame(&[0x01, 0xFD]), Err(Error::Toggle));
     }
 
     #[test]
