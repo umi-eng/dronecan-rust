@@ -1,4 +1,22 @@
-use core::fmt;
+use thiserror::Error;
+
+/// Error returned when an [`Id`] cannot be constructed from the given fields.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum InvalidId {
+    /// The priority exceeds the maximum of 31.
+    #[error("priority {0} exceeds the maximum of 31")]
+    Priority(u8),
+    /// The source node ID is out of range.
+    #[error("source node id {0} is out of range")]
+    SourceNode(u8),
+    /// The destination node ID is out of range.
+    #[error("destination node id {0} is out of range")]
+    DestinationNode(u8),
+    /// The discriminator exceeds the maximum of 16383.
+    #[error("discriminator {0} exceeds the maximum of 16383")]
+    Discriminator(u16),
+}
 
 /// DroneCAN identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,17 +94,17 @@ impl Id {
     /// - `source_node` source node identifier `1..=127`
     /// - `type_id` message type identifier
     /// - `priority` message priority `1..=31`
-    pub fn message(source_node: u8, type_id: u16, priority: u8) -> Option<Self> {
+    pub fn message(source_node: u8, type_id: u16, priority: u8) -> Result<Self, InvalidId> {
         if priority > 0x1F {
-            return None;
+            return Err(InvalidId::Priority(priority));
         }
 
         // cannot be an anonymous message
         if source_node == 0 || source_node > 0x7F {
-            return None;
+            return Err(InvalidId::SourceNode(source_node));
         }
 
-        Some(Self::Message {
+        Ok(Self::Message {
             priority,
             type_id,
             source_node,
@@ -99,18 +117,18 @@ impl Id {
     /// `discriminator` a field which should be filled with random data to make
     /// anonymous frames unique. Valid values `1..=16383`
     /// - `priority` message priority `1..=31`
-    pub fn anonymous(type_id: u16, discriminator: u16, priority: u8) -> Option<Self> {
+    pub fn anonymous(type_id: u16, discriminator: u16, priority: u8) -> Result<Self, InvalidId> {
         if priority > 0x1F {
-            return None;
+            return Err(InvalidId::Priority(priority));
         }
 
         if discriminator > 0x3FFF {
-            return None;
+            return Err(InvalidId::Discriminator(discriminator));
         }
 
         let type_id = (type_id & 0x3) as u8;
 
-        Some(Self::Anonymous {
+        Ok(Self::Anonymous {
             priority,
             discriminator,
             type_id,
@@ -130,16 +148,20 @@ impl Id {
         service_type: u8,
         request: bool,
         priority: u8,
-    ) -> Option<Self> {
+    ) -> Result<Self, InvalidId> {
         if priority > 0x1F {
-            return None;
+            return Err(InvalidId::Priority(priority));
         }
 
-        if source_node > 0x7F || destination_node > 0x7F {
-            return None;
+        if source_node > 0x7F {
+            return Err(InvalidId::SourceNode(source_node));
         }
 
-        Some(Self::Service {
+        if destination_node > 0x7F {
+            return Err(InvalidId::DestinationNode(destination_node));
+        }
+
+        Ok(Self::Service {
             priority,
             service_type,
             request,
@@ -207,17 +229,10 @@ impl From<embedded_can::ExtendedId> for Id {
 
 /// Error returned when an [`Id`] cannot be represented as an
 /// [`embedded_can::ExtendedId`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[error("id cannot be represented as an extended CAN id")]
 pub struct InvalidExtendedId;
-
-impl fmt::Display for InvalidExtendedId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "id cannot be represented as an extended CAN id")
-    }
-}
-
-impl core::error::Error for InvalidExtendedId {}
 
 impl TryFrom<Id> for embedded_can::ExtendedId {
     type Error = InvalidExtendedId;
@@ -233,12 +248,31 @@ mod tests {
 
     #[test]
     fn create_ids() {
-        assert!(Id::message(123, 123, 31).is_some());
-        assert!(Id::message(123, 123, 32).is_none()); // priority too large
-        assert!(Id::anonymous(123, 123, 31).is_some());
-        assert!(Id::anonymous(123, 123, 32).is_none()); // priority too large
-        assert!(Id::service(123, 123, 123, false, 31).is_some());
-        assert!(Id::service(123, 123, 123, false, 32).is_none()); // priority too large
+        assert!(Id::message(123, 123, 31).is_ok());
+        assert_eq!(Id::message(123, 123, 32), Err(InvalidId::Priority(32)));
+        assert_eq!(Id::message(0, 123, 31), Err(InvalidId::SourceNode(0)));
+        assert_eq!(Id::message(128, 123, 31), Err(InvalidId::SourceNode(128)));
+
+        assert!(Id::anonymous(123, 123, 31).is_ok());
+        assert_eq!(Id::anonymous(123, 123, 32), Err(InvalidId::Priority(32)));
+        assert_eq!(
+            Id::anonymous(123, 0x4000, 31),
+            Err(InvalidId::Discriminator(0x4000))
+        );
+
+        assert!(Id::service(123, 123, 123, false, 31).is_ok());
+        assert_eq!(
+            Id::service(123, 123, 123, false, 32),
+            Err(InvalidId::Priority(32))
+        );
+        assert_eq!(
+            Id::service(128, 123, 123, false, 31),
+            Err(InvalidId::SourceNode(128))
+        );
+        assert_eq!(
+            Id::service(123, 128, 123, false, 31),
+            Err(InvalidId::DestinationNode(128))
+        );
     }
 
     #[test]

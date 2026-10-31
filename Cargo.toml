@@ -12,9 +12,10 @@ crc = "3.4"
 embedded-can = "0.4"
 defmt = { version = "1.0", optional = true }
 managed = { version = "0.8", default-features = false }
+thiserror = { version = "2.0", default-features = false }
 
 [features]
 default = ["std"]
-std = ["managed/std", "alloc"]
+std = ["managed/std", "alloc", "thiserror/std"]
 alloc = ["managed/alloc", "defmt?/alloc"]
 defmt = ["dep:defmt"]

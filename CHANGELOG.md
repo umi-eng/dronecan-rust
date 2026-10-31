@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- `Id::message`, `Id::anonymous`, and `Id::service` now return
+  `Result<Id, InvalidId>` instead of `Option<Id>`. The new `InvalidId` error
+  reports which field was invalid. `InvalidId` and `InvalidExtendedId` now
+  derive `thiserror::Error`.
 - Replace the infallible `From<Id> for embedded_can::ExtendedId` conversion
   with `TryFrom<Id>`, which returns the new `InvalidExtendedId` error instead
   of panicking.
