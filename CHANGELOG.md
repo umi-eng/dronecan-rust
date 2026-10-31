@@ -17,6 +17,9 @@
   `Transfer::new` now takes an optional data type signature. `add_frame`
   returns a `Payload` containing the data and CRC result once the transfer
   completes.
+- Make `Transfer::add_frame` panic-free for short frames by splitting off the
+  tail byte and CRC explicitly instead of indexing with `data.len() - 1`.
+  Empty frames are rejected with `Error::DataLength`.
 
 ## v0.1.0
 

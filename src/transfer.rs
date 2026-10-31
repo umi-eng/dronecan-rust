@@ -111,8 +111,9 @@ impl<'a> Transfer<'a> {
             return Err(Error::DataLength);
         }
 
-        let tail = match data.last() {
-            Some(d) => Tail(*d),
+        // Split off the tail byte so the payload slice can never be empty.
+        let (tail, payload) = match data.split_last() {
+            Some((tail, payload)) => (Tail(*tail), payload),
             None => return Err(Error::DataLength),
         };
 
@@ -149,15 +150,17 @@ impl<'a> Transfer<'a> {
         }
 
         let inner_data = if tail.start() && !tail.end() {
-            // multi-frame transfers start with a 2-byte CRC
-            if data.len() < 4 {
-                return Err(Error::DataLength);
-            }
-            self.expected_crc = Some(u16::from_le_bytes([data[0], data[1]]));
-            &data[2..data.len() - 1]
+            // multi-frame transfers start with a 2-byte CRC and must carry at
+            // least one byte of payload
+            let (crc, payload) = match payload.split_first_chunk::<2>() {
+                Some((crc, payload)) if !payload.is_empty() => (crc, payload),
+                _ => return Err(Error::DataLength),
+            };
+            self.expected_crc = Some(u16::from_le_bytes(*crc));
+            payload
         } else {
             // single frame transfers don't start with crc
-            &data[..data.len() - 1]
+            payload
         };
 
         match &mut self.storage {
@@ -548,6 +551,13 @@ mod tests {
                 crc_valid: true,
             }))
         );
+    }
+
+    #[test]
+    fn transfer_empty_frame() {
+        // An empty frame has no tail byte and must be rejected without panicking.
+        let mut transfer = Transfer::new(vec![], None);
+        assert_eq!(transfer.add_frame(&[]), Err(Error::DataLength));
     }
 
     #[test]
